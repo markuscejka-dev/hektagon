@@ -1,19 +1,20 @@
 import { useState, useRef, useEffect } from "react";
 
 // ────────────────────────────────────────────────────────
-// SUPABASE CONFIG — ersetze mit deinen Werten aus supabase.com
+// SUPABASE CONFIG
+// Werte kommen aus Vercel Environment Variables
 // ────────────────────────────────────────────────────────
-const SUPABASE_URL  = "https://DEIN-PROJEKT.supabase.co";
-const SUPABASE_ANON = "DEIN-ANON-KEY";
-const IS_SUPABASE_CONFIGURED = !SUPABASE_URL.includes("DEIN");
+const SUPABASE_URL  = process.env.NEXT_PUBLIC_SUPABASE_URL  || "";
+const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const IS_SUPABASE_CONFIGURED = SUPABASE_URL.length > 10;
 
-// Lazy init — kein top-level await
+// Lazy init mit npm package (kein esm.sh)
 let supabase = null;
 const getSupabase = async () => {
   if (supabase) return supabase;
   if (!IS_SUPABASE_CONFIGURED) return null;
   try {
-    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+    const { createClient } = await import("@supabase/supabase-js");
     supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
     return supabase;
   } catch(e) { console.warn("Supabase init failed:", e); return null; }
@@ -52,10 +53,10 @@ const T = {
     featAnalysis: "Vollständige KI-Analyse", featErrors: "Alle Fehler aufgedeckt",
     featLetter: "Widerspruchsbrief", featAlarm: "Fristenalarm per E-Mail",
     featCompare: "Vorjahresvergleich", featArchive: "Dokumentenarchiv", featUnlimited: "Unlimitierte Checks",
-    payOnce: "Einmalig kaufen — €9", payPro: "Pro starten — €23,90 / Jahr",
+    payOnce: "Einmalig kaufen — €9,90", payPro: "Pro starten — €23,90 / Jahr",
     viaStripe: "via Stripe oder PayPal",
     ssl: "SSL-verschlüsselt", money: "Geld-zurück-Garantie", instant: "Sofortzugang",
-    disclaimer: "⚖️ Hektagon stellt automatisierte Rechtsinformationen bereit und ersetzt keine individuelle Rechtsberatung nach RDG.",
+    disclaimer: "⚖️ {co.brand} stellt automatisierte Rechtsinformationen bereit und ersetzt keine individuelle Rechtsberatung nach RDG.",
     demoLink: "Demo ohne Zahlung ansehen →",
     successTitle: "Willkommen bei Pro 🎉", successTitleOnce: "Zahlung erfolgreich",
     successPro: "Dein Pro-Jahresabo ist aktiv. Unlimitierte Checks, Fristenalarm und Dokumentenarchiv stehen bereit.",
@@ -151,7 +152,7 @@ const T = {
     featAnalysis: "Tam yapay zeka analizi", featErrors: "Tüm hatalar açığa çıkar",
     featLetter: "İtiraz mektubu", featAlarm: "E-posta ile son tarih uyarısı",
     featCompare: "Geçen yılla karşılaştırma", featArchive: "Belge arşivi", featUnlimited: "Sınırsız kontrol",
-    payOnce: "Tek seferlik satın al — €9", payPro: "Pro'yu Başlat — €23,90 / Yıl",
+    payOnce: "Tek seferlik satın al — €9,90", payPro: "Pro'yu Başlat — €23,90 / Yıl",
     viaStripe: "Stripe veya PayPal ile",
     ssl: "SSL şifreli", money: "Para iade garantisi", instant: "Anında erişim",
     disclaimer: "⚖️ Hektagon otomatik hukuki bilgi sunar; bireysel hukuki danışmanlığın yerini tutmaz.",
@@ -250,10 +251,10 @@ const T = {
     featAnalysis: "Full AI analysis", featErrors: "All errors revealed",
     featLetter: "Dispute letter", featAlarm: "Deadline email alerts",
     featCompare: "Year-over-year comparison", featArchive: "Document archive", featUnlimited: "Unlimited checks",
-    payOnce: "Buy Once — €9", payPro: "Start Pro — €23.90 / Year",
+    payOnce: "Buy Once — €9,90", payPro: "Start Pro — €23.90 / Year",
     viaStripe: "via Stripe or PayPal",
     ssl: "SSL encrypted", money: "Money-back guarantee", instant: "Instant access",
-    disclaimer: "⚖️ Hektagon provides automated legal information and does not replace individual legal advice.",
+    disclaimer: "⚖️ {co.brand} provides automated legal information and does not replace individual legal advice.",
     demoLink: "View demo without payment →",
     successTitle: "Welcome to Pro 🎉", successTitleOnce: "Payment Successful",
     successPro: "Your Pro annual plan is active. Unlimited checks, deadline alerts and document archive are ready.",
@@ -348,7 +349,7 @@ const T = {
     featAnalysis: "Pełna analiza AI", featErrors: "Wszystkie błędy ujawnione",
     featLetter: "List sprzeciwu", featAlarm: "Powiadomienia e-mail o terminach",
     featCompare: "Porównanie rok do roku", featArchive: "Archiwum dokumentów", featUnlimited: "Nieograniczone sprawdzenia",
-    payOnce: "Kup jednorazowo — €9", payPro: "Rozpocznij Pro — €23,90 / rok",
+    payOnce: "Kup jednorazowo — €9,90", payPro: "Rozpocznij Pro — €23,90 / rok",
     viaStripe: "przez Stripe lub PayPal",
     ssl: "Szyfrowane SSL", money: "Gwarancja zwrotu pieniędzy", instant: "Natychmiastowy dostęp",
     disclaimer: "⚖️ Hektagon dostarcza automatyczne informacje prawne i nie zastępuje indywidualnej porady prawnej.",
@@ -446,7 +447,7 @@ const T = {
     featAnalysis: "Полный ИИ-анализ", featErrors: "Все ошибки раскрыты",
     featLetter: "Письмо-возражение", featAlarm: "Email-уведомления о сроках",
     featCompare: "Сравнение год к году", featArchive: "Архив документов", featUnlimited: "Неограниченные проверки",
-    payOnce: "Купить разово — €9", payPro: "Запустить Pro — €23,90 / год",
+    payOnce: "Купить разово — €9,90", payPro: "Запустить Pro — €23,90 / год",
     viaStripe: "через Stripe или PayPal",
     ssl: "SSL-шифрование", money: "Гарантия возврата", instant: "Мгновенный доступ",
     disclaimer: "⚖️ Hektagon предоставляет автоматизированную правовую информацию и не заменяет индивидуальную юридическую консультацию.",
@@ -519,8 +520,8 @@ const T = {
 };
 
 const STRIPE = {
-  ONE_TIME_LINK: "https://buy.stripe.com/DEIN_EINMALIG_LINK",
-  PRO_YEAR_LINK: "https://buy.stripe.com/DEIN_PRO_LINK",
+  ONE_TIME_LINK: "https://buy.stripe.com/5kQ4gzdkV4sQ94nbzQao800",
+  PRO_YEAR_LINK: "https://buy.stripe.com/6oU5kD0y90cA6Wf33kao801",
 };
 
 // ─────────────────────────────────────────────────────────
@@ -529,6 +530,8 @@ const STRIPE = {
 const COUNTRIES = {
   DE: {
     code: "DE", flag: "🇩🇪", name: "Deutschland",
+    brand: "Nebenkostencheck", brandLetter: "N",
+    domain: "nebenkostencheck.de",
     currency: "€", renters: "28 Mio.",
     law: "BGB §556 & BetrKV",
     lawFull: "BGB §556, §556a, §556b und BetrKV",
@@ -540,6 +543,8 @@ const COUNTRIES = {
   },
   AT: {
     code: "AT", flag: "🇦🇹", name: "Österreich",
+    brand: "Betriebskostencheck", brandLetter: "B",
+    domain: "betriebskostencheck.online",
     currency: "€", renters: "4 Mio.",
     law: "MRG §21-24 & BetriebskostenG",
     lawFull: "MRG §21, §22, §23, §24 und das österreichische Betriebskostengesetz",
@@ -551,6 +556,8 @@ const COUNTRIES = {
   },
   CH: {
     code: "CH", flag: "🇨🇭", name: "Schweiz",
+    brand: "Betriebskostencheck", brandLetter: "B",
+    domain: "betriebskostencheck.online",
     currency: "CHF", renters: "2 Mio.",
     law: "OR Art. 257a–257b",
     lawFull: "OR Art. 257a, 257b und VMWG (Verordnung über Miete und Pacht)",
@@ -1159,13 +1166,10 @@ export default function App() {
   const handlePay = () => {
     setPaying(true);
     if (result) sessionStorage.setItem("hektagon_result", JSON.stringify(result));
-    // In Produktion: redirect zu Stripe. Hier Demo-Simulation:
-    setTimeout(() => {
-      setPaying(false);
-      setStep(S.SUCCESS);
-      // Nach erfolgreicher Zahlung: Report speichern (wenn eingeloggt)
-      if (result && user) saveReportToSupabase(result);
-    }, 1600);
+    // Redirect zu echtem Stripe Checkout
+    const link = plan === "pro" ? STRIPE.PRO_YEAR_LINK : STRIPE.ONE_TIME_LINK;
+    const returnUrl = encodeURIComponent(window.location.origin + "?paid=true");
+    window.location.href = link + "?success_url=" + returnUrl;
   };
 
   const genLetter = async () => {
@@ -1187,7 +1191,7 @@ export default function App() {
   const r = result || DEMO;
 
   const PLANS_DATA = {
-    once: { id:"once", name:t.planOnceName, price:"€9", period:t.planOncePeriod, features:[
+    once: { id:"once", name:t.planOnceName, price:"€9,90", period:t.planOncePeriod, features:[
       {text:t.featAnalysis,ok:true},{text:t.featErrors,ok:true},{text:t.featLetter,ok:true},
       {text:t.featAlarm,ok:false},{text:t.featCompare,ok:false},{text:t.featArchive,ok:false},{text:t.featUnlimited,ok:false},
     ]},
@@ -1204,7 +1208,7 @@ export default function App() {
       <div className="noise"/>
       <div className="app app-padded">
         <nav className="nav">
-          <div className="nav-logo"><div className="lm">H</div>Hektagon</div>
+          <div className="nav-logo"><div className="lm">{co.brandLetter}</div>{co.brand}</div>
           <div className="nav-right">
             {/* Auth Nav */}
             {user ? (
@@ -1649,7 +1653,7 @@ export default function App() {
           <div className="overlay" onClick={()=>setAuthModal(false)}>
             <div className="auth-card" style={{position:"relative"}} onClick={e=>e.stopPropagation()}>
               <button className="auth-close" onClick={()=>setAuthModal(false)}>×</button>
-              <div className="auth-logo">H</div>
+              <div className="auth-logo">{co.brandLetter}</div>
               <div className="auth-title">{authMode==="login" ? t.authWelcome : t.authCreate}</div>
               <div className="auth-sub">{authMode==="login" ? t.authLoginSub : t.authSignupSub}</div>
 
@@ -1818,13 +1822,21 @@ export default function App() {
               </div>
             )}
 
-            <div className="disclaimer" style={{marginTop:16}}>⚖️ Hektagon ersetzt keine individuelle Rechtsberatung nach RDG.</div>
+            <div className="disclaimer" style={{marginTop:16}}>{"⚖️ " + co.brand + " ersetzt keine individuelle Rechtsberatung nach RDG."}</div>
           </div>
         )}
 
 
       {/* ── FIXED BOTTOM STOCK TICKER ── */}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50,height:40,background:"rgba(7,7,15,0.93)",backdropFilter:"blur(40px)",WebkitBackdropFilter:"blur(40px)",borderTop:"1px solid rgba(255,255,255,0.07)",display:"flex",alignItems:"center",overflow:"hidden",WebkitMaskImage:"linear-gradient(to right,transparent 0%,black 5%,black 95%,transparent 100%)",maskImage:"linear-gradient(to right,transparent 0%,black 5%,black 95%,transparent 100%)"}}>
+      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50,height:40,background:"rgba(7,7,15,0.93)",backdropFilter:"blur(40px)",WebkitBackdropFilter:"blur(40px)",borderTop:"1px solid rgba(255,255,255,0.07)",display:"flex",alignItems:"center"}}>
+        {/* Legal links — left side */}
+        <div style={{display:"flex",gap:16,padding:"0 16px",flexShrink:0,borderRight:"1px solid rgba(255,255,255,0.07)"}}>
+          <a href="/legal?page=impressum" style={{fontSize:11,color:"rgba(255,255,255,0.25)",textDecoration:"none",whiteSpace:"nowrap"}}>Impressum</a>
+          <a href="/legal?page=datenschutz" style={{fontSize:11,color:"rgba(255,255,255,0.25)",textDecoration:"none",whiteSpace:"nowrap"}}>Datenschutz</a>
+          <a href="/legal?page=agb" style={{fontSize:11,color:"rgba(255,255,255,0.25)",textDecoration:"none",whiteSpace:"nowrap"}}>AGB</a>
+        </div>
+        {/* Ticker — scrolling */}
+        <div style={{flex:1,overflow:"hidden",WebkitMaskImage:"linear-gradient(to right,transparent 0%,black 4%,black 96%,transparent 100%)",maskImage:"linear-gradient(to right,transparent 0%,black 4%,black 96%,transparent 100%)"}}>
         <div style={{display:"flex",gap:0,animation:"ticker 90s linear infinite",width:"max-content",alignItems:"center"}}>
           {[...testimonials,...testimonials].map((t2,i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"0 24px",borderRight:"1px solid rgba(255,255,255,0.07)",height:40,whiteSpace:"nowrap",flexShrink:0}}>
@@ -1836,6 +1848,7 @@ export default function App() {
               {t2.savings>0&&<span style={{fontSize:12,fontWeight:700,color:"#30d780",flexShrink:0,fontFamily:"var(--fd)"}}>+€{t2.savings}</span>}
             </div>
           ))}
+        </div>
         </div>
       </div>
 
