@@ -1,17 +1,635 @@
-{
-  "name": "hektagon",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
-  },
-  "dependencies": {
-    "next": "14.2.5",
-    "react": "^18",
-    "react-dom": "^18",
-    "@supabase/supabase-js": "^2.45.0",
-    "resend": "^3.2.0"
+import { useState, useEffect, useRef } from "react";
+
+// ─── DEMO DATA (ersetze mit echten Supabase-Queries) ───────────────
+const DEMO = {
+  // KPIs
+  totalUsers: 1284,
+  totalUsersDelta: +12.4,
+  payingUsers: 318,
+  payingUsersDelta: +8.1,
+  mrr: 2847,
+  mrrDelta: +15.2,
+  conversionRate: 24.8,
+  conversionDelta: +2.1,
+  avgCheckPerUser: 1.4,
+  churnRate: 3.2,
+
+  // Revenue Split
+  revOnce: 1170,   // 130 × €9
+  revPro: 1677,    // 279 × €5,99 eff.
+
+  // Country breakdown
+  countries: [
+    { code: "DE", flag: "🇩🇪", name: "Deutschland", users: 874, paying: 214, revenue: 1920, color: "#30d780" },
+    { code: "AT", flag: "🇦🇹", name: "Österreich",  users: 253, paying:  71, revenue:  637, color: "#0a84ff" },
+    { code: "CH", flag: "🇨🇭", name: "Schweiz",     users: 157, paying:  33, revenue:  290, color: "#ffd60a" },
+  ],
+
+  // Language usage
+  languages: [
+    { lang: "🇩🇪 DE", pct: 68 },
+    { lang: "🇹🇷 TR", pct: 14 },
+    { lang: "🇷🇺 RU", pct: 8  },
+    { lang: "🇵🇱 PL", pct: 6  },
+    { lang: "🇬🇧 EN", pct: 4  },
+  ],
+
+  // Plan split
+  planOnce: 130,
+  planPro: 188,
+
+  // Daily signups (last 30 days)
+  dailySignups: [
+    3,5,4,7,6,8,5,4,9,11,8,7,6,10,12,9,8,11,14,10,9,13,15,11,12,16,13,10,14,18
+  ],
+  dailyRevenue: [
+    18,27,36,45,54,63,54,45,81,99,72,63,54,90,108,81,72,99,126,90,81,117,135,99,108,144,117,90,126,162
+  ],
+
+  // Recent users
+  recentUsers: [
+    { id:"u_001", country:"🇩🇪", lang:"DE", plan:"Pro",   date:"heute 14:32", amount:"€23,90" },
+    { id:"u_002", country:"🇦🇹", lang:"DE", plan:"Basis", date:"heute 13:11", amount:"€9,00"  },
+    { id:"u_003", country:"🇩🇪", lang:"TR", plan:"Pro",   date:"heute 11:45", amount:"€23,90" },
+    { id:"u_004", country:"🇨🇭", lang:"DE", plan:"Pro",   date:"heute 09:20", amount:"€23,90" },
+    { id:"u_005", country:"🇩🇪", lang:"RU", plan:"Basis", date:"gestern",     amount:"€9,00"  },
+    { id:"u_006", country:"🇦🇹", lang:"DE", plan:"Pro",   date:"gestern",     amount:"€23,90" },
+    { id:"u_007", country:"🇩🇪", lang:"PL", plan:"Pro",   date:"gestern",     amount:"€23,90" },
+    { id:"u_008", country:"🇩🇪", lang:"DE", plan:"Basis", date:"vor 2 Tagen", amount:"€9,00"  },
+  ],
+};
+
+const ADMIN_PASS = "hektagon2024"; // In Produktion: env variable + echte Auth
+
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=Epilogue:wght@400;500;600;700;800&family=Manrope:wght@300;400;500;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #06060e; --bg2: #0c0c1a; --bg3: #111124;
+    --glass: rgba(255,255,255,0.035); --gb: rgba(255,255,255,0.07); --gb2: rgba(255,255,255,0.12);
+    --w: #fff; --w80: rgba(255,255,255,0.8); --w60: rgba(255,255,255,0.6); --w30: rgba(255,255,255,0.3); --w10: rgba(255,255,255,0.1); --w05: rgba(255,255,255,0.05);
+    --g: #30d780; --gg: rgba(48,215,128,0.12); --gd: rgba(48,215,128,0.7);
+    --r: #ff453a; --rg: rgba(255,69,58,0.1);
+    --b: #0a84ff; --bg_: rgba(10,132,255,0.1);
+    --y: #ffd60a; --yg: rgba(255,214,10,0.1);
+    --fd: 'Epilogue', sans-serif; --fb: 'Manrope', sans-serif;
+    --rad: 16px; --rads: 10px; --blur: blur(32px);
   }
+  html,body { height:100%; background:var(--bg); }
+  body { font-family:var(--fb); color:var(--w); -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+
+  /* LOGIN */
+  .login { min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg); }
+  .login-card { background:var(--glass); border:1px solid var(--gb); border-radius:var(--rad); padding:40px 36px; width:100%; max-width:360px; backdrop-filter:var(--blur); text-align:center; }
+  .login-logo { width:44px; height:44px; background:var(--g); border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:800; color:#000; font-family:var(--fd); margin:0 auto 20px; }
+  .login-title { font-family:var(--fd); font-weight:700; font-size:20px; letter-spacing:-0.5px; margin-bottom:6px; }
+  .login-sub { font-size:13px; color:var(--w30); margin-bottom:28px; }
+  .login-input { width:100%; background:var(--w05); border:1px solid var(--gb2); border-radius:var(--rads); padding:12px 16px; color:var(--w); font-size:14px; font-family:var(--fb); outline:none; transition:border-color 0.18s; margin-bottom:14px; }
+  .login-input:focus { border-color:rgba(48,215,128,0.5); }
+  .login-input::placeholder { color:var(--w30); }
+  .login-btn { width:100%; background:var(--g); color:#000; border:none; border-radius:var(--rads); padding:13px; font-family:var(--fd); font-weight:700; font-size:14px; cursor:pointer; transition:all 0.18s; }
+  .login-btn:hover { background:#3eea8c; }
+  .login-err { font-size:12px; color:var(--r); margin-top:10px; }
+
+  /* LAYOUT */
+  .dash { display:flex; min-height:100vh; }
+
+  /* SIDEBAR */
+  .sidebar { width:220px; flex-shrink:0; background:var(--bg2); border-right:1px solid var(--gb); padding:20px 0; display:flex; flex-direction:column; position:fixed; top:0; bottom:0; left:0; }
+  .sb-logo { display:flex; align-items:center; gap:9px; padding:0 20px 24px; font-family:var(--fd); font-weight:700; font-size:15px; border-bottom:1px solid var(--gb); margin-bottom:16px; }
+  .sb-lm { width:26px; height:26px; background:var(--g); border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#000; }
+  .sb-admin { font-size:10px; color:var(--w30); margin-top:1px; font-weight:400; }
+  .sb-item { display:flex; align-items:center; gap:10px; padding:10px 20px; font-size:13px; color:var(--w30); cursor:pointer; transition:all 0.18s; border-left:2px solid transparent; }
+  .sb-item:hover { color:var(--w60); background:var(--w05); }
+  .sb-item.active { color:var(--w); border-left-color:var(--g); background:var(--w05); }
+  .sb-icon { font-size:15px; width:20px; text-align:center; }
+  .sb-section { font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--w30); padding:16px 20px 8px; }
+  .sb-bottom { margin-top:auto; padding:16px 20px; border-top:1px solid var(--gb); }
+  .sb-logout { font-size:12px; color:var(--w30); cursor:pointer; display:flex; align-items:center; gap:6px; }
+  .sb-logout:hover { color:var(--w60); }
+
+  /* MAIN */
+  .main { flex:1; margin-left:220px; padding:32px 36px; max-width:1200px; }
+  @media(max-width:768px) { .sidebar{display:none;} .main{margin-left:0; padding:20px;} }
+
+  /* HEADER */
+  .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:32px; }
+  .page-title { font-family:var(--fd); font-weight:800; font-size:26px; letter-spacing:-1px; }
+  .page-sub { font-size:13px; color:var(--w30); margin-top:3px; }
+  .topbar-right { display:flex; align-items:center; gap:12px; }
+  .period-sel { background:var(--w05); border:1px solid var(--gb); color:var(--w60); font-size:12px; padding:6px 12px; border-radius:var(--rads); cursor:pointer; font-family:var(--fb); display:flex; align-items:center; gap:6px; }
+  .period-sel:hover { border-color:var(--gb2); color:var(--w); }
+  .live-dot { width:7px; height:7px; background:var(--g); border-radius:50%; box-shadow:0 0 8px var(--g); animation:pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+  .live-label { font-size:11px; color:var(--gd); display:flex; align-items:center; gap:6px; }
+
+  /* KPI GRID */
+  .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
+  @media(max-width:900px) { .kpi-grid{grid-template-columns:repeat(2,1fr);} }
+  .kpi-card { background:var(--glass); border:1px solid var(--gb); border-radius:var(--rad); padding:22px 20px; backdrop-filter:var(--blur); transition:border-color 0.2s; }
+  .kpi-card:hover { border-color:var(--gb2); }
+  .kpi-label { font-size:11px; font-weight:600; letter-spacing:0.8px; text-transform:uppercase; color:var(--w30); margin-bottom:10px; }
+  .kpi-value { font-family:var(--fd); font-weight:800; font-size:32px; letter-spacing:-1.5px; line-height:1; margin-bottom:8px; }
+  .kpi-delta { font-size:12px; display:flex; align-items:center; gap:4px; }
+  .kpi-delta.up { color:var(--g); }
+  .kpi-delta.down { color:var(--r); }
+  .kpi-delta.neu { color:var(--w30); }
+
+  /* GRID 2COL */
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:24px; }
+  @media(max-width:900px) { .grid2{grid-template-columns:1fr;} }
+  .grid3 { display:grid; grid-template-columns:2fr 1fr; gap:14px; margin-bottom:24px; }
+  @media(max-width:900px) { .grid3{grid-template-columns:1fr;} }
+
+  /* CARD */
+  .card { background:var(--glass); border:1px solid var(--gb); border-radius:var(--rad); padding:24px; backdrop-filter:var(--blur); }
+  .card-title { font-family:var(--fd); font-weight:700; font-size:14px; letter-spacing:-0.3px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; }
+  .card-badge { font-size:10px; font-weight:600; letter-spacing:0.5px; padding:3px 8px; border-radius:20px; }
+  .badge-g { background:var(--gg); color:var(--gd); border:1px solid rgba(48,215,128,0.2); }
+  .badge-b { background:var(--bg_); color:var(--b); border:1px solid rgba(10,132,255,0.2); }
+
+  /* CHART BAR */
+  .bar-chart { display:flex; align-items:flex-end; gap:3px; height:80px; }
+  .bar-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .bar { width:100%; border-radius:3px 3px 0 0; transition:opacity 0.2s; cursor:pointer; min-height:2px; }
+  .bar:hover { opacity:0.8; }
+  .bar-label { font-size:9px; color:var(--w30); }
+
+  /* COUNTRY TABLE */
+  .ctable { width:100%; border-collapse:collapse; }
+  .ctable th { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--w30); padding:0 0 12px; text-align:left; border-bottom:1px solid var(--gb); }
+  .ctable th:last-child { text-align:right; }
+  .ctable td { padding:13px 0; border-bottom:1px solid var(--gb); font-size:13px; vertical-align:middle; }
+  .ctable tr:last-child td { border-bottom:none; }
+  .ctable td:last-child { text-align:right; }
+  .country-row-flag { font-size:18px; margin-right:8px; }
+  .country-row-name { font-weight:500; }
+  .progress-wrap { display:flex; align-items:center; gap:8px; }
+  .progress-bar { flex:1; height:4px; background:var(--w05); border-radius:2px; overflow:hidden; }
+  .progress-fill { height:100%; border-radius:2px; }
+  .conv-pill { font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; background:var(--gg); color:var(--gd); }
+
+  /* PLAN DONUT (CSS only) */
+  .donut-wrap { display:flex; align-items:center; gap:24px; }
+  .donut { width:80px; height:80px; border-radius:50%; position:relative; flex-shrink:0; }
+  .donut-legend { display:flex; flex-direction:column; gap:8px; }
+  .dl-item { display:flex; align-items:center; gap:8px; font-size:13px; }
+  .dl-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .dl-num { font-family:var(--fd); font-weight:700; font-size:15px; margin-left:auto; }
+
+  /* LANG BARS */
+  .lang-row { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .lang-row:last-child { margin-bottom:0; }
+  .lang-name { font-size:13px; width:52px; flex-shrink:0; }
+  .lang-bar-wrap { flex:1; height:6px; background:var(--w05); border-radius:3px; overflow:hidden; }
+  .lang-bar-fill { height:100%; background:var(--g); border-radius:3px; transition:width 1s ease; }
+  .lang-pct { font-size:12px; color:var(--w60); width:36px; text-align:right; flex-shrink:0; font-family:var(--fd); font-weight:600; }
+
+  /* RECENT TABLE */
+  .rtable { width:100%; border-collapse:collapse; }
+  .rtable th { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--w30); padding:0 0 12px; text-align:left; border-bottom:1px solid var(--gb); }
+  .rtable td { padding:12px 0; border-bottom:1px solid var(--gb); font-size:13px; }
+  .rtable tr:last-child td { border-bottom:none; }
+  .plan-tag { font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; }
+  .plan-pro { background:var(--gg); color:var(--gd); }
+  .plan-once { background:var(--w05); color:var(--w60); border:1px solid var(--gb); }
+  .uid { font-family:monospace; font-size:11px; color:var(--w30); }
+
+  /* MRR SPLIT */
+  .rev-split { display:flex; gap:0; border:1px solid var(--gb); border-radius:var(--rads); overflow:hidden; margin-bottom:20px; }
+  .rev-part { flex:1; padding:14px 16px; text-align:center; }
+  .rev-part + .rev-part { border-left:1px solid var(--gb); }
+  .rev-part-val { font-family:var(--fd); font-weight:700; font-size:22px; letter-spacing:-1px; }
+  .rev-part-label { font-size:11px; color:var(--w30); margin-top:3px; }
+
+  /* SUPABASE HINT */
+  .supabase-hint { background:rgba(10,132,255,0.06); border:1px solid rgba(10,132,255,0.18); border-radius:var(--rads); padding:14px 18px; font-size:12px; color:rgba(10,132,255,0.8); margin-bottom:24px; display:flex; align-items:flex-start; gap:10px; line-height:1.6; }
+
+  /* SCROLL */
+  ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:var(--gb2); border-radius:2px; }
+`;
+
+const NAV_ITEMS = [
+  { id:"overview", label:"Übersicht", icon:"📊" },
+  { id:"users",    label:"Nutzer",    icon:"👤" },
+  { id:"revenue",  label:"Revenue",   icon:"💰" },
+  { id:"geo",      label:"Länder",    icon:"🌍" },
+];
+
+export default function AdminDash() {
+  const [auth, setAuth] = useState(false);
+  const [pw, setPw] = useState("");
+  const [pwErr, setPwErr] = useState(false);
+  const [nav, setNav] = useState("overview");
+  const [period, setPeriod] = useState("30 Tage");
+  const [animated, setAnimated] = useState(false);
+
+  useEffect(() => {
+    if (auth) setTimeout(() => setAnimated(true), 100);
+  }, [auth]);
+
+  const login = () => {
+    if (pw === ADMIN_PASS) { setAuth(true); setPwErr(false); }
+    else setPwErr(true);
+  };
+
+  if (!auth) return (
+    <>
+      <style>{css}</style>
+      <div className="login">
+        <div className="login-card">
+          <div className="login-logo">N</div>
+          <div className="login-title">Admin Dashboard</div>
+          <div className="login-sub">Nebenkostencheck · Interner Zugang</div>
+          <input className="login-input" type="password" placeholder="Passwort" value={pw}
+            onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()} autoFocus />
+          <button className="login-btn" onClick={login}>Einloggen</button>
+          {pwErr && <div className="login-err">Falsches Passwort</div>}
+          <div style={{fontSize:11,color:"var(--w30)",marginTop:16}}>Demo-Passwort: hektagon2024</div>
+        </div>
+      </div>
+    </>
+  );
+
+  const d = DEMO;
+  const totalPct = (v, t) => Math.round(v / t * 100);
+
+  // Bar chart heights
+  const maxSignup = Math.max(...d.dailySignups);
+  const maxRev = Math.max(...d.dailyRevenue);
+
+  return (
+    <>
+      <style>{css}</style>
+      <div className="dash">
+
+        {/* SIDEBAR */}
+        <div className="sidebar">
+          <div className="sb-logo">
+            <div className="sb-lm">N</div>
+            <div>
+              <div>Nebenkostencheck</div>
+              <div className="sb-admin">Admin</div>
+            </div>
+          </div>
+          <div className="sb-section">Navigation</div>
+          {NAV_ITEMS.map(n => (
+            <div key={n.id} className={`sb-item${nav===n.id?" active":""}`} onClick={()=>setNav(n.id)}>
+              <span className="sb-icon">{n.icon}</span>{n.label}
+            </div>
+          ))}
+          <div className="sb-section">System</div>
+          <div className="sb-item"><span className="sb-icon">⚙️</span>Einstellungen</div>
+          <div className="sb-item"><span className="sb-icon">🔗</span>Stripe Dashboard</div>
+          <div className="sb-bottom">
+            <div className="sb-logout" onClick={()=>setAuth(false)}>← Ausloggen</div>
+          </div>
+        </div>
+
+        {/* MAIN CONTENT */}
+        <div className="main">
+          <div className="topbar">
+            <div>
+              <div className="page-title">
+                {nav==="overview"?"Übersicht":nav==="users"?"Nutzer":nav==="revenue"?"Revenue":"Länder"}
+              </div>
+              <div className="page-sub">Nebenkostencheck · Live Daten</div>
+            </div>
+            <div className="topbar-right">
+              <div className="live-label"><div className="live-dot"/>Live</div>
+              {["7 Tage","30 Tage","90 Tage","Gesamt"].map(p=>(
+                <div key={p} className="period-sel" style={period===p?{borderColor:"var(--g)",color:"var(--g)"}:{}} onClick={()=>setPeriod(p)}>{p}</div>
+              ))}
+            </div>
+          </div>
+
+          {/* Supabase hint */}
+          <div className="supabase-hint">
+            🔗 <span><strong>Demo-Daten.</strong> Verbinde Supabase um echte Nutzerdaten zu sehen: <code>supabase.from('users').select('*')</code> — Setup-Anleitung auf Anfrage.</span>
+          </div>
+
+          {/* ── OVERVIEW ── */}
+          {nav === "overview" && <>
+            <div className="kpi-grid">
+              {[
+                { label:"Gesamt-Nutzer",   value:d.totalUsers.toLocaleString("de"),   delta:d.totalUsersDelta,    suffix:"",   up:true  },
+                { label:"Zahlende Nutzer", value:d.payingUsers.toLocaleString("de"),  delta:d.payingUsersDelta,   suffix:"",   up:true  },
+                { label:"MRR",             value:`€${d.mrr.toLocaleString("de")}`,     delta:d.mrrDelta,           suffix:"",   up:true  },
+                { label:"Conversion",      value:`${d.conversionRate}%`,               delta:d.conversionDelta,    suffix:"",   up:true  },
+              ].map((k,i)=>(
+                <div className="kpi-card" key={i}>
+                  <div className="kpi-label">{k.label}</div>
+                  <div className="kpi-value">{k.value}</div>
+                  <div className={`kpi-delta ${k.up?"up":"down"}`}>
+                    {k.up?"↑":"↓"} {Math.abs(k.delta)}% vs. Vorperiode
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid3">
+              {/* Daily Signups Chart */}
+              <div className="card">
+                <div className="card-title">
+                  Neue Nutzer (letzte 30 Tage)
+                  <span className="card-badge badge-g">+{d.dailySignups.slice(-7).reduce((a,b)=>a+b,0)} diese Woche</span>
+                </div>
+                <div className="bar-chart">
+                  {d.dailySignups.map((v,i)=>(
+                    <div className="bar-col" key={i} title={`Tag ${i+1}: ${v} Signups`}>
+                      <div className="bar" style={{ height:`${(v/maxSignup)*100}%`, background:`rgba(48,215,128,${0.3 + (v/maxSignup)*0.7})` }} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:8,fontSize:10,color:"var(--w30)"}}>
+                  <span>Vor 30 Tagen</span><span>Heute</span>
+                </div>
+              </div>
+
+              {/* Plan Split */}
+              <div className="card">
+                <div className="card-title">Plan-Verteilung</div>
+                <div className="donut-wrap">
+                  <div className="donut" style={{
+                    background: `conic-gradient(var(--g) 0% ${totalPct(d.planPro, d.payingUsers)}%, rgba(255,255,255,0.12) ${totalPct(d.planPro, d.payingUsers)}% 100%)`
+                  }} />
+                  <div className="donut-legend">
+                    <div className="dl-item">
+                      <div className="dl-dot" style={{background:"var(--g)"}}/>
+                      <span style={{fontSize:12,color:"var(--w60)"}}>Pro Jahres</span>
+                      <span className="dl-num">{d.planPro}</span>
+                    </div>
+                    <div className="dl-item">
+                      <div className="dl-dot" style={{background:"rgba(255,255,255,0.18)"}}/>
+                      <span style={{fontSize:12,color:"var(--w60)"}}>Basis Einmalig</span>
+                      <span className="dl-num">{d.planOnce}</span>
+                    </div>
+                    <div style={{height:1,background:"var(--gb)",margin:"6px 0"}}/>
+                    <div className="dl-item">
+                      <span style={{fontSize:11,color:"var(--w30)"}}>Pro-Rate</span>
+                      <span className="dl-num" style={{color:"var(--g)",fontSize:13}}>{totalPct(d.planPro,d.payingUsers)}%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Signups */}
+            <div className="card">
+              <div className="card-title">Letzte Zahlungen <span className="card-badge badge-g">Live</span></div>
+              <table className="rtable">
+                <thead>
+                  <tr>
+                    <th>User ID</th><th>Land</th><th>Sprache</th><th>Plan</th><th>Zeit</th><th style={{textAlign:"right"}}>Betrag</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {d.recentUsers.map((u,i)=>(
+                    <tr key={i}>
+                      <td><span className="uid">{u.id}</span></td>
+                      <td>{u.country}</td>
+                      <td><span style={{fontSize:12,color:"var(--w60)"}}>{u.lang}</span></td>
+                      <td><span className={`plan-tag ${u.plan==="Pro"?"plan-pro":"plan-once"}`}>{u.plan}</span></td>
+                      <td style={{color:"var(--w30)",fontSize:12}}>{u.date}</td>
+                      <td style={{textAlign:"right",fontFamily:"var(--fd)",fontWeight:600,color:"var(--g)"}}>{u.amount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>}
+
+          {/* ── USERS ── */}
+          {nav === "users" && <>
+            <div className="kpi-grid">
+              {[
+                { label:"Gesamt",        value:d.totalUsers.toLocaleString("de"),  delta:"+12.4%", up:true  },
+                { label:"Zahlen gerade", value:d.payingUsers.toLocaleString("de"), delta:"+8.1%",  up:true  },
+                { label:"Churn Rate",    value:`${d.churnRate}%`,                  delta:"-0.4%",  up:true  },
+                { label:"Ø Checks/User", value:d.avgCheckPerUser,                  delta:"+0.2",   up:true  },
+              ].map((k,i)=>(
+                <div className="kpi-card" key={i}>
+                  <div className="kpi-label">{k.label}</div>
+                  <div className="kpi-value">{k.value}</div>
+                  <div className={`kpi-delta ${k.up?"up":"down"}`}>{k.delta} vs. Vormonat</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid2">
+              <div className="card">
+                <div className="card-title">Sprachen der Nutzer</div>
+                {d.languages.map((l,i)=>(
+                  <div className="lang-row" key={i}>
+                    <div className="lang-name">{l.lang}</div>
+                    <div className="lang-bar-wrap">
+                      <div className="lang-bar-fill" style={{width: animated ? `${l.pct}%`:"0%"}}/>
+                    </div>
+                    <div className="lang-pct">{l.pct}%</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="card">
+                <div className="card-title">Conversion by Country</div>
+                <table className="ctable">
+                  <thead><tr><th>Land</th><th>Nutzer</th><th>Conv.</th></tr></thead>
+                  <tbody>
+                    {d.countries.map((c,i)=>(
+                      <tr key={i}>
+                        <td><span className="country-row-flag">{c.flag}</span><span className="country-row-name">{c.code}</span></td>
+                        <td style={{color:"var(--w60)"}}>{c.users.toLocaleString("de")}</td>
+                        <td><span className="conv-pill">{totalPct(c.paying,c.users)}%</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="card-title">Alle neuesten Nutzer</div>
+              <table className="rtable">
+                <thead><tr><th>User ID</th><th>Land</th><th>Sprache</th><th>Plan</th><th>Zeit</th><th style={{textAlign:"right"}}>Betrag</th></tr></thead>
+                <tbody>
+                  {d.recentUsers.map((u,i)=>(
+                    <tr key={i}>
+                      <td><span className="uid">{u.id}</span></td>
+                      <td>{u.country}</td>
+                      <td><span style={{fontSize:12,color:"var(--w60)"}}>{u.lang}</span></td>
+                      <td><span className={`plan-tag ${u.plan==="Pro"?"plan-pro":"plan-once"}`}>{u.plan}</span></td>
+                      <td style={{color:"var(--w30)",fontSize:12}}>{u.date}</td>
+                      <td style={{textAlign:"right",fontFamily:"var(--fd)",fontWeight:600,color:"var(--g)"}}>{u.amount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>}
+
+          {/* ── REVENUE ── */}
+          {nav === "revenue" && <>
+            <div className="kpi-grid">
+              {[
+                { label:"MRR",          value:`€${d.mrr.toLocaleString("de")}`,  delta:"+15.2%", up:true },
+                { label:"ARR (Prognose)", value:`€${(d.mrr*12).toLocaleString("de")}`, delta:"",  up:true },
+                { label:"ARPU",         value:`€${(d.mrr/d.payingUsers).toFixed(2)}`, delta:"+3.1%", up:true },
+                { label:"LTV (Ø 18 Mo)", value:`€${(d.mrr/d.payingUsers*18).toFixed(0)}`, delta:"", up:true },
+              ].map((k,i)=>(
+                <div className="kpi-card" key={i}>
+                  <div className="kpi-label">{k.label}</div>
+                  <div className="kpi-value">{k.value}</div>
+                  {k.delta && <div className="kpi-delta up">↑ {k.delta} vs. Vormonat</div>}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid3">
+              <div className="card">
+                <div className="card-title">
+                  Tages-Revenue (letzte 30 Tage)
+                  <span className="card-badge badge-g">€{d.dailyRevenue.slice(-7).reduce((a,b)=>a+b,0)} diese Woche</span>
+                </div>
+                <div className="bar-chart">
+                  {d.dailyRevenue.map((v,i)=>(
+                    <div className="bar-col" key={i} title={`Tag ${i+1}: €${v}`}>
+                      <div className="bar" style={{height:`${(v/maxRev)*100}%`,background:`rgba(48,215,128,${0.25+(v/maxRev)*0.75})`}}/>
+                    </div>
+                  ))}
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:8,fontSize:10,color:"var(--w30)"}}>
+                  <span>Vor 30 Tagen</span><span>Heute</span>
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="card-title">Revenue Split</div>
+                <div className="rev-split">
+                  <div className="rev-part">
+                    <div className="rev-part-val" style={{color:"var(--g)"}}>€{d.revPro.toLocaleString("de")}</div>
+                    <div className="rev-part-label">Pro Abo</div>
+                  </div>
+                  <div className="rev-part">
+                    <div className="rev-part-val">€{d.revOnce.toLocaleString("de")}</div>
+                    <div className="rev-part-label">Einmalig</div>
+                  </div>
+                </div>
+                <div style={{fontSize:12,color:"var(--w30)",lineHeight:1.7}}>
+                  <div style={{display:"flex",justifyContent:"space-between",paddingBottom:8,borderBottom:"1px solid var(--gb)",marginBottom:8}}>
+                    <span>Pro-Anteil am Revenue</span>
+                    <span style={{color:"var(--g)",fontWeight:600}}>{totalPct(d.revPro, d.mrr)}%</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",paddingBottom:8,borderBottom:"1px solid var(--gb)",marginBottom:8}}>
+                    <span>Ø Zahlung</span>
+                    <span style={{fontWeight:600}}>€{(d.mrr/d.payingUsers).toFixed(2)}</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between"}}>
+                    <span>Stripe Gebühren (~2.9%)</span>
+                    <span style={{color:"var(--r)"}}>–€{Math.round(d.mrr*0.029)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>}
+
+          {/* ── GEO ── */}
+          {nav === "geo" && <>
+            <div className="kpi-grid">
+              {d.countries.map((c,i)=>(
+                <div className="kpi-card" key={i}>
+                  <div className="kpi-label">{c.flag} {c.name}</div>
+                  <div className="kpi-value">{c.users.toLocaleString("de")}</div>
+                  <div className="kpi-delta up">↑ {c.paying} zahlend · €{c.revenue.toLocaleString("de")} MRR</div>
+                </div>
+              ))}
+              <div className="kpi-card">
+                <div className="kpi-label">🌍 DACH Gesamt</div>
+                <div className="kpi-value">{d.totalUsers.toLocaleString("de")}</div>
+                <div className="kpi-delta up">↑ {d.payingUsers} zahlend</div>
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="card-title">Länder-Breakdown</div>
+              <table className="ctable">
+                <thead>
+                  <tr>
+                    <th>Land</th>
+                    <th>Nutzer</th>
+                    <th>Zahlend</th>
+                    <th>Conversion</th>
+                    <th>Anteil Nutzer</th>
+                    <th style={{textAlign:"right"}}>MRR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {d.countries.map((c,i)=>(
+                    <tr key={i}>
+                      <td><span className="country-row-flag">{c.flag}</span><span className="country-row-name">{c.name}</span></td>
+                      <td style={{color:"var(--w60)"}}>{c.users.toLocaleString("de")}</td>
+                      <td style={{color:"var(--w60)"}}>{c.paying.toLocaleString("de")}</td>
+                      <td><span className="conv-pill">{totalPct(c.paying,c.users)}%</span></td>
+                      <td style={{minWidth:140}}>
+                        <div className="progress-wrap">
+                          <div className="progress-bar">
+                            <div className="progress-fill" style={{width:`${totalPct(c.users,d.totalUsers)}%`,background:c.color}}/>
+                          </div>
+                          <span style={{fontSize:11,color:"var(--w30)",width:32,textAlign:"right"}}>{totalPct(c.users,d.totalUsers)}%</span>
+                        </div>
+                      </td>
+                      <td style={{textAlign:"right",fontFamily:"var(--fd)",fontWeight:700,color:"var(--g)"}}>€{c.revenue.toLocaleString("de")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="grid2">
+              <div className="card">
+                <div className="card-title">Sprachen nach Land</div>
+                {d.countries.map((c,i)=>(
+                  <div key={i} style={{marginBottom:i<d.countries.length-1?20:0}}>
+                    <div style={{fontSize:12,color:"var(--w60)",fontWeight:600,marginBottom:10}}>{c.flag} {c.name}</div>
+                    <div className="lang-row">
+                      <div className="lang-name" style={{fontSize:12}}>🇩🇪 DE</div>
+                      <div className="lang-bar-wrap"><div className="lang-bar-fill" style={{width:animated?(c.code==="CH"?"72%":"82%"):"0%",background:c.color}}/></div>
+                      <div className="lang-pct">{c.code==="CH"?"72%":"82%"}</div>
+                    </div>
+                    {c.code==="DE"&&<div className="lang-row">
+                      <div className="lang-name" style={{fontSize:12}}>🇹🇷 TR</div>
+                      <div className="lang-bar-wrap"><div className="lang-bar-fill" style={{width:animated?"18%":"0%",background:c.color}}/></div>
+                      <div className="lang-pct">18%</div>
+                    </div>}
+                    {c.code==="CH"&&<div className="lang-row">
+                      <div className="lang-name" style={{fontSize:12}}>🇫🇷 FR</div>
+                      <div className="lang-bar-wrap"><div className="lang-bar-fill" style={{width:animated?"18%":"0%",background:c.color}}/></div>
+                      <div className="lang-pct">18%</div>
+                    </div>}
+                  </div>
+                ))}
+              </div>
+
+              <div className="card">
+                <div className="card-title">Top-Insight 💡</div>
+                <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                  {[
+                    { icon:"🇦🇹", text:"Österreich hat die höchste Conversion (28%) — evtl. weniger Konkurrenz", color:"var(--g)" },
+                    { icon:"🇹🇷", text:"18% der DE-Nutzer nutzen Türkisch — stärkstes nicht-DE Segment", color:"var(--b)" },
+                    { icon:"🇨🇭", text:"Schweiz hat höchsten Ø-Revenue durch CHF-Preise möglich", color:"var(--y)" },
+                    { icon:"📈", text:"Pro-Rate steigt: 59% aller zahlenden Nutzer wählen Pro", color:"var(--g)" },
+                  ].map((tip,i)=>(
+                    <div key={i} style={{display:"flex",gap:12,padding:"12px 14px",background:"var(--w05)",borderRadius:var(--rads)||10,border:"1px solid var(--gb)"}}>
+                      <span style={{fontSize:18}}>{tip.icon}</span>
+                      <span style={{fontSize:12,color:"var(--w60)",lineHeight:1.5}}>{tip.text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>}
+
+        </div>
+      </div>
+    </>
+  );
 }
